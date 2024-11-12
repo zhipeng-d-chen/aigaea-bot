@@ -17,6 +17,7 @@
 
   async function main() {
       const accessToken = await askQuestion("Enter your accessToken :");
+      const id8 = await askQuestion("Enter your first 8 browserID :");
 
       let headers = {
           'Accept': 'application/json, text/plain, */*',
@@ -52,7 +53,9 @@
       }
 
       function generateBrowserId() {
-          return crypto.randomUUID();  
+        const rdm = crypto.randomUUID().slice(8);
+        const browserId = `${id8}${rdm}`
+        return browserId;  
       }
 
       async function loadBrowserIds() {

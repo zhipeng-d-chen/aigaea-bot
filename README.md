@@ -36,10 +36,13 @@ This is a proxy manager script that interacts with Aigaea's API, allowing you to
     The proxy list will be saved to this file, put your proxy there.
 
 
-## Access Token
-- You can obtain your token from the [Aigaea Dashboard](https://app.aigaea.net/register?ref=gamBazFEV0g4kt).
+## Access Token and first 8 browserID
+- You can obtain your token and browser id from the [Aigaea Dashboard](https://app.aigaea.net/register?ref=gamBazFEV0g4kt).
 
   ![gaea-token](image-1.png)
+- Copy your first 8 browser id
+- 
+  ![image](https://github.com/user-attachments/assets/15f23b20-951a-4963-91f3-2277b9db1b26)
 
 
 ## Running the Script

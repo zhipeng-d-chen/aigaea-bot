@@ -21,7 +21,7 @@
 
       let headers = {
           'Accept': 'application/json, text/plain, */*',
-          'Connection': 'keep-alive',
+          'origin': 'chrome-extension://cpjicfogbgognnifjgmenmaldnmeeeib',
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
           'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
@@ -96,11 +96,12 @@
 
       async function pingProxy(proxy, browser_id, uid) {
           const timestamp = getCurrentTimestamp();
-          const pingPayload = { "uid": uid, "browser_id": browser_id, "timestamp": timestamp, "version": "1.0.0" };
+          const pingPayload = { "uid": uid, "browser_id": browser_id, "timestamp": timestamp, "version": "1.0.1" };
 
           while (true) {
               try {
                   const pingResponse = await coday('https://api.aigaea.net/api/network/ping', 'POST', pingPayload, proxy);
+                  await coday('https://api.aigaea.net/api/network/ip', 'GET', {}, proxy)
                   console.log(`Ping successful for proxy ${proxy}:`, pingResponse);
 
                   // Check the score 

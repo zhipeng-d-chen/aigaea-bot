@@ -1,23 +1,25 @@
 (async () => {
   const fetch = (await import('node-fetch')).default;
   const fs = require('fs').promises;
-  const { HttpsProxyAgent } = require('https-proxy-agent');
-  const path = require('path'); 
-  const readline = require('readline');
-  const crypto = require('crypto'); 
-
-  const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-  });
-
-  function askQuestion(query) {
-      return new Promise((resolve) => rl.question(query, (answer) => resolve(answer)));
-  }
+  const path = require('path');
+  const crypto = require('crypto');
 
   async function main() {
-      const accessToken = await askQuestion("Enter your accessToken :");
-      const id8 = await askQuestion("Enter your first 8 browserID :");
+      const tokenFilePath = path.join(__dirname, 'token.txt');
+      const browserIdFilePath = path.join(__dirname, 'browserid.txt');
+
+      let accessToken;
+      let id8;
+
+      try {
+          accessToken = await fs.readFile(tokenFilePath, 'utf-8');
+          id8 = await fs.readFile(browserIdFilePath, 'utf-8');
+          accessToken = accessToken.trim();
+          id8 = id8.trim();
+      } catch (error) {
+          console.error('Error reading configuration files:', error);
+          return;
+      }
 
       let headers = {
           'Accept': 'application/json, text/plain, */*',
@@ -27,16 +29,12 @@
           'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
       };
 
-      const browserIdFilePath = path.join(__dirname, 'browser_ids.json');
-
-      async function coday(url, method, payloadData = null, proxy) {
+      async function coday(url, method, payloadData = null) {
           try {
-              const agent = new HttpsProxyAgent(proxy);
               let response;
               const options = {
                   method: method,
-                  headers: headers,
-                  agent: agent
+                  headers: headers
               };
 
               if (method === 'POST') {
@@ -48,19 +46,19 @@
 
               return await response.json();
           } catch (error) {
-              console.error('Error with proxy:', proxy);
+              console.error('Error:', error);
           }
       }
 
       function generateBrowserId() {
-        const rdm = crypto.randomUUID().slice(8);
-        const browserId = `${id8}${rdm}`
-        return browserId;  
+          const rdm = crypto.randomUUID().slice(8);
+          const browserId = `${id8}${rdm}`;
+          return browserId;  
       }
 
       async function loadBrowserIds() {
           try {
-              const data = await fs.readFile(browserIdFilePath, 'utf-8');
+              const data = await fs.readFile('browser_ids.json', 'utf-8');
               return JSON.parse(data);
           } catch (error) {
               return {};  
@@ -69,86 +67,66 @@
 
       async function saveBrowserIds(browserIds) {
           try {
-              await fs.writeFile(browserIdFilePath, JSON.stringify(browserIds, null, 2), 'utf-8');
+              await fs.writeFile('browser_ids.json', JSON.stringify(browserIds, null, 2), 'utf-8');
               console.log('Browser IDs saved to file.');
           } catch (error) {
               console.error('Error saving browser IDs:', error);
           }
       }
 
-      async function getBrowserId(proxy) {
+      async function getBrowserId() {
           const browserIds = await loadBrowserIds();
-          if (browserIds[proxy]) {
-              console.log(`Using existing browser_id for proxy ${proxy}`);
-              return browserIds[proxy];  
-          } else {
-              const newBrowserId = generateBrowserId();
-              browserIds[proxy] = newBrowserId;  // Save new browser_id for the proxy
-              await saveBrowserIds(browserIds);  
-              console.log(`Generated new browser_id for proxy ${proxy}: ${newBrowserId}`);
-              return newBrowserId;
-          }
+          const newBrowserId = generateBrowserId();
+          browserIds['default'] = newBrowserId;  
+          await saveBrowserIds(browserIds);  
+          console.log(`Generated new browser_id: ${newBrowserId}`);
+          return newBrowserId;
       }
 
       function getCurrentTimestamp() {
           return Math.floor(Date.now() / 1000);  
       }
 
-      async function pingProxy(proxy, browser_id, uid) {
+      async function pingServer(browser_id, uid) {
           const timestamp = getCurrentTimestamp();
           const pingPayload = { "uid": uid, "browser_id": browser_id, "timestamp": timestamp, "version": "1.0.1" };
 
           while (true) {
               try {
-                  const pingResponse = await coday('https://api.aigaea.net/api/network/ping', 'POST', pingPayload, proxy);
-                  await coday('https://api.aigaea.net/api/network/ip', 'GET', {}, proxy)
-                  console.log(`Ping successful for proxy ${proxy}:`, pingResponse);
+                  const pingResponse = await coday('https://api.aigaea.net/api/network/ping', 'POST', pingPayload);
+                  await coday('https://api.aigaea.net/api/network/ip', 'GET', {});
+                  console.log(`Ping successful:`, pingResponse);
 
-                  // Check the score 
                   if (pingResponse.data && pingResponse.data.score < 50) {
-                      console.log(`Score below 50 for proxy ${proxy}, re-authenticating...`);
+                      console.log(`Score below 50, re-authenticating...`);
 
-                      // Re-authenticate and restart pinging with a new browser_id
-                      await handleAuthAndPing(proxy);
+                      await handleAuthAndPing();
                       break; 
                   }
               } catch (error) {
-                  console.error(`Ping failed for proxy ${proxy}:`, error);
+                  console.error(`Ping failed:`, error);
               }
-              await new Promise(resolve => setTimeout(resolve, 600000));  // Wait 10 minutes before the next ping
+              await new Promise(resolve => setTimeout(resolve, 600000));  
           }
       }
 
-      async function handleAuthAndPing(proxy) {
+      async function handleAuthAndPing() {
           const payload = {};
-          const authResponse = await coday("https://api.aigaea.net/api/auth/session", 'POST', payload, proxy);
+          const authResponse = await coday("https://api.aigaea.net/api/auth/session", 'POST', payload);
           
           if (authResponse && authResponse.data) {
               const uid = authResponse.data.uid;
-              const browser_id = await getBrowserId(proxy);  // Get or generate a unique browser_id for this proxy
-              console.log(`Authenticated for proxy ${proxy} with uid ${uid} and browser_id ${browser_id}`);
+              const browser_id = await getBrowserId();  
+              console.log(`Authenticated with uid ${uid} and browser_id ${browser_id}`);
 
-              // Start pinging 
-              pingProxy(proxy, browser_id, uid);
+              pingServer(browser_id, uid);
           } else {
-              console.error(`Authentication failed for proxy ${proxy}`);
+              console.error(`Authentication failed`);
           }
       }
 
       try {
-          // Read proxies from proxy.txt
-          const proxyList = await fs.readFile('proxy.txt', 'utf-8');
-          const proxies = proxyList.split('\n').map(proxy => proxy.trim()).filter(proxy => proxy);
-
-          if (proxies.length === 0) {
-              console.error("No proxies found in proxy.txt");
-              return;
-          }
-
-          const tasks = proxies.map(proxy => handleAuthAndPing(proxy));
-
-          await Promise.all(tasks);
-
+          await handleAuthAndPing();
       } catch (error) {
           console.error('An error occurred:', error);
       }
